@@ -1,0 +1,10 @@
+<resources>
+
+    <string name="app_name">DataDecoy Test</string>
+    <string name="intro_text">App shows your current GPS location that will be sent off the phone!</string>
+    <string name="menu_settings">Settings</string>
+    <string name="title_activity_data_decoy_test">DataDecoyTest</string>
+    <string name="reset_timer">Reset App</string>
+    <string name="report">Nothing to report yet.</string>
+
+</resources>
