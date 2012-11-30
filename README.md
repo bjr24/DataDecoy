@@ -8,7 +8,7 @@ In response we modified the Android platform to allow a user to choose which app
 
 
 Team Members:
-* Guru Prasad
+* Guru Prasad Srinivasa
 * Denise Blady
 * Eric Lehner
 * Brian Rosenberg
