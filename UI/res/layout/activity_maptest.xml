@@ -1,0 +1,52 @@
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:weightSum="100" >
+    
+<LinearLayout 
+    android:id="@+id/MapViewLinLayout"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:layout_weight="10">
+
+        <edu.buffalo.cse.cse622.datadecoy.CustomMapView
+        	android:id="@+id/Mapview"
+ 			android:layout_width="fill_parent"
+ 			android:layout_height="fill_parent"
+ 			android:enabled="true"
+ 			android:clickable="true"
+ 			android:apiKey="@string/api_key"
+ 		/>
+
+</LinearLayout>
+
+        <RelativeLayout
+            xmlns:android="http://schemas.android.com/apk/res/android"
+    		android:layout_width="fill_parent"
+    		android:layout_height="fill_parent"
+            android:layout_weight="90"
+            android:background="#676767"
+            android:orientation="vertical">
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/btnAddByAddress"
+            android:layout_marginLeft="20dp"
+            android:text="Add By Address" />
+            
+        <Button
+            android:id="@+id/btnFinished"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentRight="true"
+            android:layout_marginRight="20dp"
+            android:text="Finished" />
+
+    </RelativeLayout>
+
+</LinearLayout>

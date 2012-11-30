@@ -1,0 +1,16 @@
+<resources>
+
+    <string name="app_name">DataDecoy</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="menu_settings">Settings</string>
+    <string name="title_activity_main">DataDecoy</string>
+    <string name="installed_apps">List Installed Apps</string>
+    <string name="refresh_list">Refresh List</string>
+    <string name="mock_default">Default</string>
+    <string name="mock_auto">Mock Automatically</string>
+    <string name="mock_manual">Mock Manually</string>
+    <string name="apply_button_text">Apply</string>
+    <string name="cancel_button_text">Cancel</string>
+    <string name="api_key">YourGoogleMapsApiKey</string>
+
+</resources>
