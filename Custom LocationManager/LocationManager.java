@@ -17,19 +17,34 @@
 package android.location;
 
 import android.app.PendingIntent;
+import android.app.ActivityManagerNative;
+import android.app.ActivityManager;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.Handler;
 import android.os.Message;
+import android.os.Binder;
 import android.util.Log;
 
 import com.android.internal.location.DummyLocationProvider;
 
+import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
+import java.util.StringTokenizer;
+import java.util.Iterator;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.text.DecimalFormat;
+import java.lang.Exception;
 
 /**
  * This class provides access to the system location services.  These
@@ -170,11 +185,11 @@ public class LocationManager {
         private static final int TYPE_PROVIDER_ENABLED = 3;
         private static final int TYPE_PROVIDER_DISABLED = 4;
 
-        private LocationListener mListener;
+        private MockLocationListener mListener;
         private final Handler mListenerHandler;
 
         ListenerTransport(LocationListener listener, Looper looper) {
-            mListener = listener;
+            mListener = new MockLocationListener(listener);
 
             if (looper == null) {
                 mListenerHandler = new Handler() {
@@ -650,13 +665,24 @@ public class LocationManager {
             minDistance = 0.0f;
         }
 
+//        The real listener needs to be mapped to its corresponding MockListener. This is because, the mocklistener is what
+//        is stored in the HashMap...
         try {
+        	LocationListener mckListener = null;
+        	for(LocationListener ml : mListeners.keySet()) {
+        		if( ((MockLocationListener) ml).getListener().equals(listener) )
+        			mckListener = ml;
+        	}
             synchronized (mListeners) {
-                ListenerTransport transport = mListeners.get(listener);
+            	ListenerTransport transport = null;
+            	if(mckListener != null)
+            		transport = mListeners.get(listener);
                 if (transport == null) {
-                    transport = new ListenerTransport(listener, looper);
+//                	If transport is null, mckListener is also null..(OR map is faulty..which is improbable <-> synchronized)
+                	mckListener = new MockLocationListener(listener);
+                    transport = new ListenerTransport(mckListener, looper);
                 }
-                mListeners.put(listener, transport);
+                mListeners.put(mckListener, transport);
                 mService.requestLocationUpdates(provider, criteria, minTime, minDistance, singleShot, transport);
             }
         } catch (RemoteException ex) {
@@ -1003,7 +1029,13 @@ public class LocationManager {
             Log.d(TAG, "removeUpdates: listener = " + listener);
         }
         try {
-            ListenerTransport transport = mListeners.remove(listener);
+        	Log.d("MOD","Removing updates for listener from package " + listener.getClass().getPackage().getName());
+        	LocationListener mckListener = null;
+        	for(LocationListener ml : mListeners.keySet()) {
+        		if( ((MockLocationListener) ml).getListener().equals(listener))
+        			mckListener = ml;
+        	}
+            ListenerTransport transport = mListeners.remove(mckListener);
             if (transport != null) {
                 mService.removeUpdates(transport);
             }
@@ -1153,7 +1185,22 @@ public class LocationManager {
             throw new IllegalArgumentException("provider==null");
         }
         try {
-            return mService.getLastKnownLocation(provider);
+        	MockLocationListener mckListener = new MockLocationListener(Binder.getCallingPid());
+        	Log.d("MOD", "getLastKnownLocation called by  :" + mckListener.getAppName());
+
+        	if(mService.getLastKnownLocation(provider) == null)
+        		return null;
+        	Location realLocation = new Location(mService.getLastKnownLocation(provider));
+        	if(mckListener.shouldMock(realLocation)) {
+        		Log.i("MOD",mckListener.getAppName() + "->getLastKnownLocation->shouldMock returned :true");
+        		Location mockLocation = new Location(mckListener.getMockLocation(realLocation));
+        		return mockLocation;
+        	}
+        	else {
+        		Log.v("MOD", "Need not mock " + mckListener.getAppName() + "->getLastKnownLocation");
+        		return mService.getLastKnownLocation(provider);
+        	}
+            
         } catch (RemoteException ex) {
             Log.e(TAG, "getLastKnowLocation: RemoteException", ex);
             return null;
@@ -1161,6 +1208,44 @@ public class LocationManager {
     }
 
     // Mock provider support
+    
+    /**
+ 	 * Used as a hook into the LocationManager to issue location updates manually. 
+ 	 * Allows the user to feed a location object to an application. 
+ 	 * Not fully tested yet.
+ 	 * 
+ 	 * 
+ 	 * All sanity checks are to be done at the application level!!!
+ 	 * (A design decision that is open to change)
+ 	 * 
+ 	 * 
+ 	 * @param appName {@code String} containing the application(pkg) name.
+ 	 * @param coordinates {@code String} containing the coordinates for the new location object in whitespace separated format
+ 	 * {@code latitude <whitespace> longitude}
+ 	 * @param provider {@code String} containing the provider information. Sanity check for the provider is done in the UI level.
+ 	 * Use the constants within LocationManager while performing sanity checks.
+ 	 * 
+ 	 * @return {@code 0} if successful, {@code -1} otherwise
+ 	 */
+ 	public int changeLocation(String appName, String coordinates, String provider) {
+     	Log.d("MOD","changeLocation called with appName :" + appName + "coordinates :" + coordinates + "provider :" + provider);
+     	Location loc 		= new Location(provider);
+     	String[] strings 	= coordinates.split("\\s+");
+     	double latitude		= Double.parseDouble(strings[0]);
+     	double longitude	= Double.parseDouble(strings[1]);
+     	loc.setLatitude(latitude);
+     	loc.setLongitude(longitude);
+     	
+     	for (LocationListener entry : mListeners.keySet()) {
+     		MockLocationListener mckListener = (MockLocationListener) entry;
+     		if(mckListener.getAppName().equals(appName)) {
+     			mckListener.onLocationChanged(loc);
+     			Log.d("MOD","called " + mckListener.getAppName() + ".onLocationChanged() successfully");
+     			return 0;
+     		}
+     	}
+     	return -1;
+ 	}
 
     /**
      * Creates a mock location provider and adds it to the set of active providers.
@@ -1581,5 +1666,301 @@ public class LocationManager {
             return false;
         }
     }
+}
 
+
+/**
+ * The MockListener class is used to encapsulate the {@code LocationListener} object that is passed on to the {@code LocationManager} by the application. 
+ * The MockListener class determines whether the incoming location data should be mocked for the application requesting location updates.
+ * 
+ * TODO :
+ * 		Add support for passive providers
+ * 		Add any method useful for easy retrieval of private attributes
+ * 		Clean up code
+ */
+class MockLocationListener implements LocationListener {
+	int callingPID;
+	Location lastRealLocation 	= null,lastMockedLocation = null;
+	private int threshold 		= 10;  
+	private int mockType 		= -1;
+	private String provider		= "";
+	private LocationListener realListener_;
+	private static Map<String,Map<Location,Double>> delayMap = new HashMap<String,Map<Location,Double>>();
+
+	public MockLocationListener(LocationListener realListener) {
+		Log.v("MOD","BINDER PID :" + Binder.getCallingPid());
+		callingPID		= Binder.getCallingPid();
+		realListener_ 	= realListener;
+		Log.v("MOD","MockLocationListener class called by " + getAppName());
+	}
+	
+	public MockLocationListener(int pid) {
+		callingPID		= pid;
+	}
+
+	/**
+	 * Queries the database for the given application and the permission and returns whether the particular LocationListener should be mocked 
+	 * or not.
+	 * @param location {@code Location} containing the actual coordinates from the message pool.
+	 * @return {@code true} if this application should be mocked, {@code false} otherwise.
+	 */
+
+	public boolean shouldMock(Location location) {
+		File dbFile = new File("/data/data/edu.buffalo.cse.cse622.datadecoy/databases/db.txt");
+//		If the file does not exist, the user does not have DataDecoy (A case that rarely occurs!), there is no mocking to be done..return false
+		if(!dbFile.exists()) {
+			Log.i("MOD","db.txt does not exist...");
+			return false;
+		}
+		else
+			Log.v("MOD","db.txt exists..size =" + dbFile.length());
+		String provider = location.getProvider();
+		String appName  = getAppName();
+		
+		BufferedReader in = null;
+		try {
+			in = new BufferedReader(new FileReader(dbFile));
+			String line = null;
+			
+			while( (line = in.readLine()) != null) {
+				Log.v("MOD", line + "provider :" + provider);
+				String[] tokens = line.split("\\s+");
+				int index = tokens.length;
+				while(index > 0)
+					Log.v("MOD","tokens[" + (tokens.length - index) + "] =" + tokens[tokens.length - index--]);
+
+				if(tokens[0].equals(appName) && tokens[1].equals("ACCESS_FINE_LOCATION") && provider.equalsIgnoreCase("gps")) {
+					mockType = Integer.parseInt((line.split("\\s+"))[2]);	//line is of the form APP_NAME		PERM		MOCK_VALUE
+					provider = LocationManager.GPS_PROVIDER;
+					return true;
+				}
+				if(tokens[0].equals(appName) && tokens[1].equals("ACCESS_COARSE_LOCATION") && !provider.equalsIgnoreCase("gps")) {
+					mockType = Integer.parseInt((line.split("\\s+"))[2]);	//line is of the form APP_NAME		PERM		MOCK_VALUE
+					provider = LocationManager.NETWORK_PROVIDER;
+					return true;
+				}
+			}
+		} catch (FileNotFoundException e) {
+			Log.e("MOD","FileNotFoundException occured on " + dbFile.getName() + "\n " + e.getMessage());
+		} catch (IOException e) {
+			Log.e("MOD","IOException while reading " + dbFile.getName() + "\n " + e.getMessage());
+		} finally {
+			try {
+				in.close();
+			} catch (IOException e) {
+				Log.e("MOD","IOException while closing BufferedReader for " + dbFile.getName() + "\n " + e.getMessage());
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Fetches the application name from the LocationListener object belonging to the application.
+	 * @return {@code String} containing the application name
+	 */
+
+	public String getAppName() {
+		String appName = null;
+		List<ActivityManager.RunningAppProcessInfo> appList = null;
+		try {
+			appList = ActivityManagerNative.getDefault().getRunningAppProcesses();
+			Log.v("MOD","appList size  :" + appList.size());
+		} catch (RemoteException e) {
+			Log.e("MOD","RemoteException while getting running applications! " + e.getMessage());
+		}
+		Iterator iter = appList.iterator();
+		while(iter.hasNext()) {
+			ActivityManager.RunningAppProcessInfo info = (ActivityManager.RunningAppProcessInfo) iter.next();
+			try {
+				if(info.pid == callingPID) {
+					Log.v("MOD","PID :" + info.pid + "\tApplication Name :" + info.processName);
+					appName = info.processName;
+				}
+			} catch(Exception e) {
+				Log.e("MOD", "Exception :"+ e.getMessage());
+			}
+		}
+		return appName.substring(appName.lastIndexOf(".") + 1);
+	}
+
+
+	/**
+	 * Opens the appropriate file from which the mock data is to be read and returns a mocked {@code Location}
+	 * @param location The actual {@code Location} object from which all the parameters are to be copied
+	 * @return {@code Location} object containing modified latitude and longitude.
+	 */
+
+	public Location getMockLocation(Location location) {
+		
+		if(delayMap.get(getAppName()) != null) {
+			Map<Location,Double> entryMap = delayMap.get(getAppName());
+			Location lastMockedLocation = null;
+			double lastTimeStamp = 0;
+			for(Map.Entry<Location,Double> entry : entryMap.entrySet()) {
+				lastMockedLocation 	= entry.getKey();
+				lastTimeStamp		= entry.getValue();
+			}
+			double timeDiff 		= ((double) (System.nanoTime() - lastTimeStamp) / 1000000000);
+			if(timeDiff < 15)
+				return lastMockedLocation;
+		}
+		
+		Location returnLoc 		= null;
+		BufferedReader in_temp 	= null;
+		File mockFile			= null;
+		try {
+			if(mockType == 1)
+				mockFile 		= new File("./data/data/edu.buffalo.cse.cse622.datadecoy/databases/auto-mock.txt");
+			else if(mockType == 2)
+				mockFile		= new File("./data/data/edu.buffalo.cse.cse622.datadecoy/databases/" + getAppName() + "-" + provider + ".txt");
+
+			Log.v("MOD","Trying to open " + mockFile.getName());
+			if(!mockFile.exists())
+				Log.e("MOD", mockFile.getName() + " does not exist");
+			
+			in_temp				= new BufferedReader(new FileReader(mockFile));
+			int lineCount = 0;
+			while(in_temp.readLine() != null)
+				lineCount++;
+			Log.v("MOD", mockFile.getName() + " has " + lineCount + " lines");
+			
+			/*Generates random number between range [0,lineCount)
+			 * The zeros have been left on purpose as this is a nice expression to generate random numbers between given intervals
+			 * rnd = min + (int) (Math.random() * (max - min))
+			 * To generate numbers in the closed interval of [min,max], we use
+			 * rnd = min + (int) (Math.random() * (max - min + 1))
+			 * The easier expression to generate numbers from [0,max) is
+			 * rnd = Math.random() * max
+			 */
+			int rnd = 0 + (int) (Math.random() * (lineCount - 0)),index = 0;
+//			Re-initialize BufferedReader on mockFile
+			in_temp = new BufferedReader(new FileReader(mockFile));
+			while(index < rnd) {
+				in_temp.readLine();
+				index++;
+			}
+			
+			String line = in_temp.readLine();
+			Log.v("MOD","rnd =" + rnd + "\t line :" + line);
+			String[] loc = line.split("\\s+");
+			returnLoc = new Location(location);
+			returnLoc.setLatitude(Double.parseDouble(loc[0]));
+			returnLoc.setLongitude(Double.parseDouble(loc[1]));
+			
+		} catch (IOException e) {
+			Log.e("MOD","IOException while reading " + mockFile.getName() + "\n " + e.getMessage());
+		} finally {
+			try {
+				in_temp.close();
+			} catch (IOException e) {
+				Log.e("MOD","IOException while closing BufferedReader for " + mockFile.getName() + "\n " + e.getMessage());
+			}
+		}
+		Map<Location,Double> map = new HashMap<Location,Double>();
+		map.put(returnLoc,(double)System.nanoTime());
+		delayMap.put(getAppName(),map);
+		return returnLoc;
+	}
+	
+	/**
+	 * Returns the real LocationListener object.
+	 * This is used in the LocationManager class in a few places to unhook updates and such
+	 */
+	public LocationListener getListener() {
+		return realListener_;
+	}
+	
+	/**
+	 * Formats the latitude and longitude of a {@code Location} object into a printable string format 
+	 * @param location {@code Location} object containing the necessary coordinates
+	 * @return formatted {@code String} containing the coordinates in readable format 
+	 */
+	private String format(Location location) {
+		DecimalFormat df = new DecimalFormat("##.########");
+		String lat = df.format(location.getLatitude());
+		String lng = df.format(location.getLongitude()); 
+		return ("Lat :" + lat + "    Long :" + lng);
+	}
+	
+	
+	@Override
+	public void onLocationChanged(Location location) {
+		if(mockType > 0 || shouldMock(location)) {
+			Log.d("MOD","Should mock calling app :" + getAppName());
+			
+			if(lastRealLocation == null) {
+				Log.d("MOD","LocationManager received new update  " + format(location));
+				Location mockLocation 	= getMockLocation(location);
+				Log.d("MOD","LastRealLocation was null.. setting to  " + format(location));
+				lastRealLocation = new Location(location);
+				
+//				signal the real listener with this change
+				realListener_.onLocationChanged(mockLocation);
+				
+				
+				lastMockedLocation		= new Location(mockLocation);
+				Log.v("MOD", getAppName() + " :mocked location :" + format(mockLocation));
+			}
+			
+			else if(lastRealLocation.distanceTo(location) < threshold) {
+				Log.d("MOD","Threshold not crossed(" + lastRealLocation.distanceTo(location) + ")...ignore");
+//				Compute deltas between the new location update and the last one that we have 
+				double deltaLat  = lastRealLocation.getLatitude() - location.getLatitude();
+				double deltaLong = lastRealLocation.getLongitude() - location.getLongitude();
+				
+//				Create the new mock location object as a copy of the new incoming location
+				Location newMockLocation = new Location(location);
+				
+//				change the latitudes and longitudes to correspond with the change perceived earlier (deltas)
+				newMockLocation.setLatitude(lastMockedLocation.getLatitude() /*+ deltaLat*/);
+				newMockLocation.setLongitude(lastMockedLocation.getLongitude() /*+ deltaLong*/);
+				
+//				signal the real listener with this change
+				realListener_.onLocationChanged(newMockLocation);
+			}
+			
+			else {
+//				The movement has exceeded our threshold. This requires a 'new' mock location.
+				Log.d("MOD","LocationManager received new update  " + format(location));
+				
+//				Create the new mock location object as a copy of the new incoming location				
+				Location mockLocation 	= getMockLocation(location);
+				Log.d("MOD", "lastRealLocation set to :" + format(location));
+				
+//				Write lastRealLocation to reflect the new location
+				lastRealLocation		= new Location(location);
+				
+//				signal the real listener with this change
+				realListener_.onLocationChanged(mockLocation);
+				
+//				save the mock location as lastMockedLocation
+				lastMockedLocation 		= new Location(mockLocation);
+				
+				Log.v("MOD", getAppName() + " :mocked location :" + format(mockLocation));
+			}
+		}
+		else {
+			Log.v("MOD","Need not mock calling app :" + getAppName());
+			realListener_.onLocationChanged(location);
+		}
+	}
+	
+
+	@Override
+	public void onStatusChanged(String provider, int status, Bundle extras) {
+		// TODO Auto-generated method stub
+		realListener_.onStatusChanged(provider,status,extras);
+	}
+
+	@Override
+	public void onProviderEnabled(String provider) {
+		// TODO Figure out the right parameter to pass to realListener
+		realListener_.onProviderEnabled(provider);
+	}
+
+	@Override
+	public void onProviderDisabled(String provider) {
+		// TODO Figure out the right parameter to pass to realListener
+		realListener_.onProviderDisabled(provider);
+	}	
 }
