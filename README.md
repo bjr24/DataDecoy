@@ -9,6 +9,14 @@ In response we modified the Android platform to allow a user to choose which app
 
 The CSE622 project pitch that started it all on [YouTube](https://www.youtube.com/watch?v=Ox1YeVRTVaQ)
 
+See DataDecoy in action ([avi](https://github.com/bjr24/DataDecoy/blob/master/datadecoy.avi?raw=true))
+
+All of our changes to the Android platform are in [LocationManager.java](https://github.com/bjr24/DataDecoy/blob/master/Custom%20LocationManager/LocationManager.java). 
+It is meant to replace the orginal Android LocationManager. When DataDecoy is not set to 
+mock an app's data, our LocationManger behaves identically to the original Android version. 
+When DataDecoy is set to mock an app's data, our code distributes artificial location
+information to the specified apps.
+
 Team Members
 ---------
 * Guru Prasad Srinivasa
