@@ -29,6 +29,12 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/mock_manual" />
+        
+        <RadioButton
+            android:id="@+id/injectLoc_radioButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/inject_location" />
     </RadioGroup>
 
     <Button

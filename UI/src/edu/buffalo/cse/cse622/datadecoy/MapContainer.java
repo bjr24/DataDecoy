@@ -133,7 +133,7 @@ public class MapContainer extends MapActivity {
    									@Override
    									public void onClick(DialogInterface arg0, int arg1) {
    										// Add location to list to send back to caller
-   										trace.add(point.getLatitudeE6() + "\t" + point.getLongitudeE6());
+   										trace.add(String.valueOf((double)point.getLatitudeE6()/1E6) + "\t" + String.valueOf((double)point.getLongitudeE6()/1E6));
    										OverlayItem overlayItem = new OverlayItem(point, "", addr);
    										
    										//  Prevents any lingering errors from the itemOverlay
@@ -246,7 +246,7 @@ public class MapContainer extends MapActivity {
 			                         (int) (addresses.get(0).getLongitude() * 1E6));
 			   	            	
 			   	            	// Add location to list to send back to caller
-								trace.add(point.getLatitudeE6() + "\t" + point.getLongitudeE6());
+								trace.add(String.valueOf((double)point.getLatitudeE6()/1E6) + "\t" + String.valueOf((double)point.getLongitudeE6()/1E6));
 			   	            	OverlayItem overlayItem = new OverlayItem(point, "", enteredAddress);
 			   	            	
 			   	            	//  Prevents any lingering errors from the itemOverlay

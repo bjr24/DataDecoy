@@ -9,8 +9,9 @@
     <string name="mock_default">Default</string>
     <string name="mock_auto">Mock Automatically</string>
     <string name="mock_manual">Mock Manually</string>
+    <string name="inject_location">Inject Location</string>
     <string name="apply_button_text">Apply</string>
     <string name="cancel_button_text">Cancel</string>
-    <string name="api_key">YourGoogleMapsApiKey</string>
+    <string name="api_key">0os92IUiHaa7cODoi6CXGI824K0oj4ekLrSEp1w</string>
 
 </resources>

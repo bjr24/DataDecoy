@@ -15,6 +15,7 @@ import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.database.sqlite.SQLiteQueryBuilder;
+import android.location.LocationManager;
 import android.util.Log;
 /*
  * Currently, the database never uses the update functionality although it is implemented. 
@@ -155,15 +156,20 @@ public class DecoyDatabase {
     		BufferedWriter out 	= new BufferedWriter(new FileWriter(dbFile));
     		out.write(writer.toString());
 			out.close();
-			
-			String appFile = "./data/data/edu.buffalo.cse.cse622.datadecoy/databases/" + app + "-" + perm + ".txt";
+			String appFile = null;
+			if(perm.equals("ACCESS_FINE_LOCATION")) 
+				appFile = "./data/data/edu.buffalo.cse.cse622.datadecoy/databases/" + app + "-" + LocationManager.GPS_PROVIDER + ".txt";
+			else 
+				appFile = "./data/data/edu.buffalo.cse.cse622.datadecoy/databases/" + app + "-" + LocationManager.NETWORK_PROVIDER + ".txt";
 			File file = new File(appFile);
 			if (file.exists()) {
 				boolean retBln = file.delete();
-				if (retBln = false){
-					Log.e("MOD", "Could not delete file " + appFile);
+				if (retBln == false){
+					Log.e("MOD", "Could not delete " + appFile);
 				}
+				else	Log.d("MOD", "Updated " + appFile);
 			}
+			else	Log.d("MOD", "Created " + appFile);
 			
 		} catch (IOException e) {
 			Log.e("MOD", "IOException while deleting row from " + dbFile.getName() + "\n" + e.getMessage());
@@ -211,13 +217,19 @@ public class DecoyDatabase {
         	out.close();
         	
 			try{
-				String appFile = "./data/data/edu.buffalo.cse.cse622.datadecoy/databases/" + app + "-" + perm + ".txt";
+				String appFile = null;
+				/*if(perm.equals("ACCESS_FINE_LOCATION")) appFile = "./data/data/edu.buffalo.cse.cse622.datadecoy/databases/" + app + "-" + "FINE" + ".txt";
+				else */appFile = "./data/data/edu.buffalo.cse.cse622.datadecoy/databases/" + app + /*"-" + "COARSE" + */".txt";
 				File file = new File(appFile);
 				if (!file.exists()) {
+					Log.d("MOD", "Creating " + appFile);
 				        try {
 				            file.createNewFile();
-				            Process p = Runtime.getRuntime().exec("chmod 666 " + appFile);
-							p.waitFor();
+				            if(file.exists()){
+				            	Process p = Runtime.getRuntime().exec("chmod 666 " + appFile);
+								p.waitFor();
+								Log.d("MOD", "Created " + appFile);
+				            }
 				        } catch (IOException e) {
 				            e.printStackTrace();
 				            if(file.exists()){
@@ -226,12 +238,14 @@ public class DecoyDatabase {
 				        }
 				}
 				if(trace != null && file.exists()){
+					Log.d("MOD", "Writing to " + appFile);
 					FileWriter fileW = new FileWriter(file);
 					out	= new BufferedWriter(fileW);
 					out.write(trace);
 					out.close();
 					
 				}
+				else Log.d("MOD", "Trace was null? " + String.valueOf((trace != null)) + "File exists? " + String.valueOf((file.exists())));
 				
 				
 			}

@@ -1,5 +1,7 @@
 package edu.buffalo.cse.cse622.datadecoy;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -12,6 +14,7 @@ import static edu.buffalo.cse.cse622.datadecoy.database.DecoyDatabase.KEY_PERMIS
 import static edu.buffalo.cse.cse622.datadecoy.database.DecoyDatabase.KEY_DECOYTYPE;
 import static edu.buffalo.cse.cse622.datadecoy.database.DecoyDatabase.DecoyType.MOCK_AUTO;
 import static edu.buffalo.cse.cse622.datadecoy.database.DecoyDatabase.DecoyType.MOCK_MANUAL;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.app.Activity;
@@ -42,9 +45,12 @@ public class MainActivity extends Activity {
 	private Context context = this;
 	private StringBuilder locationListBuilder;
     private Intent _MapIntent; 
+    LocationManager _locationManager;
 	ExpandableListView listView = null;
 	List<String> locationPermissionList = new ArrayList<String>(Arrays.asList(new String[]{"android.permission.ACCESS_COARSE_LOCATION","android.permission.ACCESS_FINE_LOCATION"}));
 	private static final int LOCATION_BY_MAP = 0;
+	private ContentValues mockValues;
+	
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -54,7 +60,7 @@ public class MainActivity extends Activity {
 		Point display = new Point();
 		getWindowManager().getDefaultDisplay().getSize(display);
 		_MapIntent = new Intent(this, MapContainer.class);
-		
+		_locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
 		listView.setIndicatorBounds(display.x - 20, display.x-5);
 		
 		listView.setOnChildClickListener(new ExpandableListView.OnChildClickListener() {
@@ -101,6 +107,10 @@ public class MainActivity extends Activity {
 					radioGroup.check(R.id.mockManual_radioButton);
 					break;
 				}
+				case 3 : {
+					radioGroup.check(R.id.injectLoc_radioButton);
+					break;
+				}
 				default : {
 					dialog.setContentView(new View(MainActivity.this));
 					break;
@@ -141,11 +151,38 @@ public class MainActivity extends Activity {
 								//  Eventually put in a content provider to decide how 
 								//  to obtain the trace (gps track, or manual entry).
 								values.put(KEY_DECOYTYPE, MOCK_MANUAL.toString());
+								mockValues = values;
 								startActivityForResult(_MapIntent, LOCATION_BY_MAP);
-								if( locationListBuilder != null){
-									values.put(DecoyDatabase.KEY_TRACE_PATH, locationListBuilder.toString());
-								}
-								getContentResolver().insert(DecoyContentProvider.PROVIDER_URI, values);
+								break;
+							}
+							
+							case R.id.injectLoc_radioButton	: {
+								//use the map container to obtain a trace.
+								//  Eventually put in a content provider to decide how 
+								//  to obtain the trace (gps track, or manual entry).
+								try {
+							        Method method = _locationManager.getClass().getDeclaredMethod("changeLocation", String.class,String.class,String.class);
+							        String[] args = new String[] {adapter.getGroup(groupID), "10 20", "gps"};    // CHANGE THIS
+							        int val = (Integer) method.invoke(_locationManager, (Object[]) args);
+							        if(val < 0)
+							            Log.d("MOD","changeLocation reflection call failed!");
+							        else
+							            Log.d("MOD", "changeLocation reflection succeeded!" + val);
+							    } catch (NoSuchMethodException e) {
+							        Log.d("MOD","NoSuchMethodException!");
+							        Log.d("MOD", e.getMessage());
+							    } catch (IllegalArgumentException e) {
+							        Log.d("MOD","IllegalArgumentException!");
+							        Log.d("MOD", e.getMessage());
+							    } catch (IllegalAccessException e) {
+							        Log.d("MOD","IllegalAccessException!");
+							        Log.d("MOD", e.getMessage());    
+							    } catch (InvocationTargetException e) {
+							        Log.d("MOD","InvocationTargetException!");
+							        Log.d("MOD", e.getMessage());
+
+
+							    }
 								break;
 							}
 							}
@@ -299,12 +336,21 @@ public class MainActivity extends Activity {
     	      if (resultCode == Activity.RESULT_OK) { 
     	    	  Bundle rtnValue = data.getExtras();
     	    	  if(rtnValue != null){
+    	    		  Log.d("MOD", "Activity returns something");
     	    		  ArrayList<String> locationList = new ArrayList<String>();
     	    		  locationList.addAll(rtnValue.getStringArrayList(MapContainer.RESULT_KEY));
     	    		  locationListBuilder = new StringBuilder();
     	    		  for(int i = 0; i < locationList.size(); i++){
     	    			  locationListBuilder.append(locationList.get(i) + System.getProperty("line.separator"));
     	    		  }
+    	    		  Log.d("MOD", "String is, in length, " + locationListBuilder.length());
+    	    		  if(mockValues != null){
+    	    			  if( locationListBuilder != null){
+    	    				  mockValues.put(DecoyDatabase.KEY_TRACE_PATH, locationListBuilder.toString());
+    	    		  		}
+    	    		  		getContentResolver().insert(DecoyContentProvider.PROVIDER_URI, mockValues);
+    	    		  }	
+    	    		  else Log.d("MOD", "Values were empty");
     	    	  }
     	      // TODO Switch tabs using the index.
     	      } 
