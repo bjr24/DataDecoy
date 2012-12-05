@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.StringTokenizer;
 import java.util.Iterator;
+import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -1239,7 +1240,7 @@ public class LocationManager {
      	for (LocationListener entry : mListeners.keySet()) {
      		MockLocationListener mckListener = (MockLocationListener) entry;
      		if(mckListener.getAppName().equals(appName)) {
-     			mckListener.onLocationChanged(loc);
+     			mckListener.forceLocationChanged(loc);
      			Log.d("MOD","called " + mckListener.getAppName() + ".onLocationChanged() successfully");
      			return 0;
      		}
@@ -1709,12 +1710,12 @@ class MockLocationListener implements LocationListener {
 		File dbFile = new File("/data/data/edu.buffalo.cse.cse622.datadecoy/databases/db.txt");
 //		If the file does not exist, the user does not have DataDecoy (A case that rarely occurs!), there is no mocking to be done..return false
 		if(!dbFile.exists()) {
-			Log.i("MOD","db.txt does not exist...");
+			Log.v("MOD","db.txt does not exist...");
 			return false;
 		}
 		else
 			Log.v("MOD","db.txt exists..size =" + dbFile.length());
-		String provider = location.getProvider();
+		String locProvider = location.getProvider();
 		String appName  = getAppName();
 		
 		BufferedReader in = null;
@@ -1723,20 +1724,25 @@ class MockLocationListener implements LocationListener {
 			String line = null;
 			
 			while( (line = in.readLine()) != null) {
-				Log.v("MOD", line + "provider :" + provider);
+				Log.v("MOD", line + " provider :" + locProvider);
 				String[] tokens = line.split("\\s+");
 				int index = tokens.length;
-				while(index > 0)
-					Log.v("MOD","tokens[" + (tokens.length - index) + "] =" + tokens[tokens.length - index--]);
+				while(index > 0) {
+//					Log.v("MOD","tokens[" + (tokens.length - index) + "] =" + tokens[tokens.length - index]);
+					index--;
+				}
 
-				if(tokens[0].equals(appName) && tokens[1].equals("ACCESS_FINE_LOCATION") && provider.equalsIgnoreCase("gps")) {
+				if(tokens[0].equals(appName) && tokens[1].equals("ACCESS_FINE_LOCATION") && ( 
+						locProvider.equals(LocationManager.GPS_PROVIDER) || locProvider.equals(LocationManager.NETWORK_PROVIDER))) {
 					mockType = Integer.parseInt((line.split("\\s+"))[2]);	//line is of the form APP_NAME		PERM		MOCK_VALUE
-					provider = LocationManager.GPS_PROVIDER;
+					this.provider = locProvider;
+					Log.d("MOD","Should mock calling app :" + getAppName());
 					return true;
 				}
-				if(tokens[0].equals(appName) && tokens[1].equals("ACCESS_COARSE_LOCATION") && !provider.equalsIgnoreCase("gps")) {
+				if(tokens[0].equals(appName) && tokens[1].equals("ACCESS_COARSE_LOCATION") && !locProvider.equals(LocationManager.GPS_PROVIDER)) {
 					mockType = Integer.parseInt((line.split("\\s+"))[2]);	//line is of the form APP_NAME		PERM		MOCK_VALUE
-					provider = LocationManager.NETWORK_PROVIDER;
+					this.provider = locProvider;
+					Log.d("MOD","Should mock calling app :" + getAppName());
 					return true;
 				}
 			}
@@ -1751,6 +1757,7 @@ class MockLocationListener implements LocationListener {
 				Log.e("MOD","IOException while closing BufferedReader for " + dbFile.getName() + "\n " + e.getMessage());
 			}
 		}
+		Log.v("MOD","Need not mock calling app :" + getAppName());
 		return false;
 	}
 
@@ -1809,10 +1816,11 @@ class MockLocationListener implements LocationListener {
 		BufferedReader in_temp 	= null;
 		File mockFile			= null;
 		try {
+			Log.v("MOD","mockType :" + mockType);
 			if(mockType == 1)
 				mockFile 		= new File("./data/data/edu.buffalo.cse.cse622.datadecoy/databases/auto-mock.txt");
 			else if(mockType == 2)
-				mockFile		= new File("./data/data/edu.buffalo.cse.cse622.datadecoy/databases/" + getAppName() + "-" + provider + ".txt");
+				mockFile		= new File("./data/data/edu.buffalo.cse.cse622.datadecoy/databases/" + getAppName() + /*"-" + provider + */".txt");
 
 			Log.v("MOD","Trying to open " + mockFile.getName());
 			if(!mockFile.exists())
@@ -1824,6 +1832,8 @@ class MockLocationListener implements LocationListener {
 				lineCount++;
 			Log.v("MOD", mockFile.getName() + " has " + lineCount + " lines");
 			
+			
+			in_temp = new BufferedReader(new FileReader(mockFile));
 			/*Generates random number between range [0,lineCount)
 			 * The zeros have been left on purpose as this is a nice expression to generate random numbers between given intervals
 			 * rnd = min + (int) (Math.random() * (max - min))
@@ -1832,16 +1842,17 @@ class MockLocationListener implements LocationListener {
 			 * The easier expression to generate numbers from [0,max) is
 			 * rnd = Math.random() * max
 			 */
-			int rnd = 0 + (int) (Math.random() * (lineCount - 0)),index = 0;
+			int rnd = 0 + (int) (Math.random() * (lineCount - 0)) , index = 0;
 //			Re-initialize BufferedReader on mockFile
-			in_temp = new BufferedReader(new FileReader(mockFile));
+			Log.v("MOD","rnd =" + rnd);
 			while(index < rnd) {
 				in_temp.readLine();
 				index++;
 			}
 			
+		
 			String line = in_temp.readLine();
-			Log.v("MOD","rnd =" + rnd + "\t line :" + line);
+			Log.v("MOD","line :" + line);
 			String[] loc = line.split("\\s+");
 			returnLoc = new Location(location);
 			returnLoc.setLatitude(Double.parseDouble(loc[0]));
@@ -1886,7 +1897,6 @@ class MockLocationListener implements LocationListener {
 	@Override
 	public void onLocationChanged(Location location) {
 		if(mockType > 0 || shouldMock(location)) {
-			Log.d("MOD","Should mock calling app :" + getAppName());
 			
 			if(lastRealLocation == null) {
 				Log.d("MOD","LocationManager received new update  " + format(location));
@@ -1940,9 +1950,12 @@ class MockLocationListener implements LocationListener {
 			}
 		}
 		else {
-			Log.v("MOD","Need not mock calling app :" + getAppName());
 			realListener_.onLocationChanged(location);
 		}
+	}
+	
+	public void forceLocationChanged(Location loc) {
+		realListener_.onLocationChanged(loc);
 	}
 	
 
