@@ -33,21 +33,36 @@
         <section id="main_content">
           <h1><a href="http://bjr24.github.com/DataDecoy/">DataDecoy</a></h1>
 
-<p>DataDecoy-GPS edition</p>
+<h2>DataDecoy-GPS edition</h2>
 
 <p>We were annoyed because all these Android apps require your GPS location just for location-based advertisements.
 In response we modified the Android platform to allow a user to choose which applications get real location information and which get false information.</p>
 
 <p>The CSE622 project pitch that started it all on <a href="https://www.youtube.com/watch?v=Ox1YeVRTVaQ">YouTube</a></p>
 
-<p>Team Members:</p>
+<h2>Team Members</h2>
 
 <ul>
 <li>Guru Prasad Srinivasa</li>
 <li>Denise Blady</li>
 <li>Eric Lehner</li>
 <li>Brian Rosenberg</li>
-</ul>
+</ul><h2>Installation</h2>
+
+<p>This image is Android JellyBean 4.1.1. It is specific to the Samsung Nexus S 3G edition</p>
+
+<ol>
+<li>Download <a href="https://github.com/downloads/bjr24/DataDecoy/system.img">system.img</a>
+</li>
+<li>Connect the phone</li>
+<li>run: <code>adb reboot bootloader</code>
+</li>
+<li>If the bootloader is locked, run: <code>fastboot oem unlocked</code>
+</li>
+<li><code>fastboot flash system /path/to/system.img</code></li>
+<li>Download and install the <a href="https://github.com/downloads/bjr24/DataDecoy/Data%20Decoy.apk">UI app</a>
+</li>
+</ol>
         </section>
 
         <footer>
